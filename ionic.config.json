@@ -1,0 +1,7 @@
+{
+  "name": "Little Bites",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}
