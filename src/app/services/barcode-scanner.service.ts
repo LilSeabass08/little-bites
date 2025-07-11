@@ -1,6 +1,8 @@
 import { Injectable } from '@angular/core';
-import { Platform } from '@ionic/angular';
+import { Platform, ModalController } from '@ionic/angular';
 import { environment } from '../../environments/environment';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { BarcodeScannerModalComponent } from '../components/barcode-scanner-modal/barcode-scanner-modal.component';
 
 export interface BarcodeScanResult {
   barcode: string;
@@ -15,7 +17,10 @@ export interface BarcodeScanResult {
 export class BarcodeScannerService {
   private isNativePlatform: boolean;
 
-  constructor(private platform: Platform) {
+  constructor(
+    private platform: Platform,
+    private modalController: ModalController
+  ) {
     this.isNativePlatform = this.platform.is('capacitor');
   }
 
@@ -41,31 +46,49 @@ export class BarcodeScannerService {
   }
 
   /**
-   * Native camera barcode scanning
+   * Native camera barcode scanning using MLKit
    */
   private async scanWithNativeCamera(): Promise<BarcodeScanResult> {
     try {
-      // This would use a native barcode scanner plugin
-      // For now, we'll simulate the native scanning
-      // In a real implementation, you would use something like:
-      // const { BarcodeScanner } = await import('@capacitor-community/barcode-scanner');
+      // Check if MLKit barcode scanning is available
+      const { supported } = await BarcodeScanner.isSupported();
+      if (!supported) {
+        throw new Error(
+          'MLKit barcode scanning is not supported on this device'
+        );
+      }
 
-      // Simulate native scanning for demo purposes
-      await this.simulateNativeScan();
+      // Open the barcode scanner modal
+      const modal = await this.modalController.create({
+        component: BarcodeScannerModalComponent,
+        componentProps: {},
+        backdropDismiss: false,
+        showBackdrop: false,
+        cssClass: 'barcode-scanner-modal',
+      });
 
-      // Mock result - in real implementation, this would come from the native scanner
-      return {
-        barcode: '1234567890123',
-        format: 'EAN_13',
-        cancelled: false,
-      };
+      await modal.present();
+
+      // Wait for the modal to dismiss with result
+      const { data } = await modal.onWillDismiss();
+
+      if (data) {
+        return data as BarcodeScanResult;
+      } else {
+        return {
+          barcode: '',
+          format: '',
+          cancelled: true,
+        };
+      }
     } catch (error) {
       console.error('Native barcode scanning failed:', error);
       return {
         barcode: '',
         format: '',
         cancelled: true,
-        error: 'Native scanning not available',
+        error:
+          error instanceof Error ? error.message : 'Native scanning failed',
       };
     }
   }
