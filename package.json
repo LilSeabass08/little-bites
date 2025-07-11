@@ -9,7 +9,14 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "serve": "ionic serve",
+    "build:prod": "ionic build --prod",
+    "android": "ionic capacitor run android",
+    "ios": "ionic capacitor run ios",
+    "sync": "ionic capacitor sync",
+    "add:android": "ionic capacitor add android",
+    "add:ios": "ionic capacitor add ios"
   },
   "private": true,
   "dependencies": {

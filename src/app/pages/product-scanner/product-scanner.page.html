@@ -1,0 +1,222 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-title>
+      <ion-icon name="scan-outline"></ion-icon>
+      Little Bites Scanner
+    </ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="changeAgeGroup()" fill="clear">
+        <ion-icon name="person-outline"></ion-icon>
+        {{ selectedAgeGroup }}
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <!-- Main Scanner Section -->
+  <div class="scanner-container" *ngIf="!currentProduct">
+    <ion-card class="scanner-card">
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="barcode-outline"></ion-icon>
+          Scan Baby Food
+        </ion-card-title>
+        <ion-card-subtitle>
+          {{ getScanningInstructions() }}
+        </ion-card-subtitle>
+      </ion-card-header>
+
+      <ion-card-content>
+        <div class="scan-button-container">
+          <ion-button (click)="scanBarcode()" [disabled]="isLoading || !isScanningAvailable" size="large" expand="block"
+            color="primary" class="scan-button">
+            <ion-icon name="camera-outline" slot="start"></ion-icon>
+            {{ isLoading ? 'Scanning...' : 'Scan Barcode' }}
+          </ion-button>
+        </div>
+
+        <div class="scan-info" *ngIf="!isScanningAvailable">
+          <ion-icon name="information-circle-outline" color="warning"></ion-icon>
+          <p>Barcode scanning is not available on this device. You can manually enter product information.</p>
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Scan History -->
+    <ion-card *ngIf="scanHistory.length > 0" class="history-card">
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="time-outline"></ion-icon>
+          Recent Scans
+        </ion-card-title>
+      </ion-card-header>
+
+      <ion-card-content>
+        <ion-list>
+          <ion-item *ngFor="let product of scanHistory.slice(0, 5)" (click)="viewProductDetails(product)" button>
+            <ion-avatar slot="start">
+              <ion-badge [color]="getGradeColor(product.grade.grade)" class="grade-badge">
+                {{ product.grade.grade }}
+              </ion-badge>
+            </ion-avatar>
+
+            <ion-label>
+              <h3>{{ product.nutritionData.productName }}</h3>
+              <p>{{ product.nutritionData.brandName }}</p>
+              <p class="scan-date">{{ product.scanDate | date:'short' }}</p>
+            </ion-label>
+
+            <ion-button slot="end" fill="clear" (click)="toggleFavorite(product); $event.stopPropagation()">
+              <ion-icon [name]="product.isFavorite ? 'heart' : 'heart-outline'"
+                [color]="product.isFavorite ? 'danger' : 'medium'">
+              </ion-icon>
+            </ion-button>
+          </ion-item>
+        </ion-list>
+      </ion-card-content>
+    </ion-card>
+  </div>
+
+  <!-- Product Details Section -->
+  <div class="product-details" *ngIf="currentProduct">
+    <ion-card class="product-card">
+      <ion-card-header>
+        <ion-toolbar>
+          <ion-buttons slot="start">
+            <ion-button (click)="clearCurrentProduct()" fill="clear">
+              <ion-icon name="arrow-back-outline"></ion-icon>
+              Back
+            </ion-button>
+          </ion-buttons>
+
+          <ion-title>{{ currentProduct.nutritionData.productName }}</ion-title>
+
+          <ion-buttons slot="end">
+            <ion-button (click)="toggleFavorite(currentProduct)" fill="clear">
+              <ion-icon [name]="currentProduct.isFavorite ? 'heart' : 'heart-outline'"
+                [color]="currentProduct.isFavorite ? 'danger' : 'medium'">
+              </ion-icon>
+            </ion-button>
+          </ion-buttons>
+        </ion-toolbar>
+      </ion-card-header>
+
+      <ion-card-content>
+        <!-- Grade Display -->
+        <div class="grade-section">
+          <div class="grade-display" [class]="'grade-' + currentProduct.grade.grade.toLowerCase()">
+            <div class="grade-letter">{{ currentProduct.grade.grade }}</div>
+            <div class="grade-score">{{ currentProduct.grade.score }}/100</div>
+          </div>
+
+          <div class="grade-info">
+            <h3>Nutrition Grade</h3>
+            <p>Based on {{ selectedAgeGroup }} guidelines</p>
+          </div>
+        </div>
+
+        <!-- Product Information -->
+        <div class="product-info">
+          <ion-item>
+            <ion-label>
+              <h3>Brand</h3>
+              <p>{{ currentProduct.nutritionData.brandName || 'Unknown' }}</p>
+            </ion-label>
+          </ion-item>
+
+          <ion-item>
+            <ion-label>
+              <h3>Serving Size</h3>
+              <p>{{ currentProduct.nutritionData.servingSize }}</p>
+            </ion-label>
+          </ion-item>
+
+          <ion-item>
+            <ion-label>
+              <h3>Barcode</h3>
+              <p>{{ currentProduct.barcode }}</p>
+            </ion-label>
+          </ion-item>
+        </div>
+
+        <!-- Nutrition Facts -->
+        <div class="nutrition-section">
+          <h3>Nutrition Facts</h3>
+          <div class="nutrition-grid">
+            <div class="nutrition-item">
+              <span class="label">Calories</span>
+              <span class="value">{{ currentProduct.nutritionData.nutritionFacts.calories }}</span>
+            </div>
+            <div class="nutrition-item">
+              <span class="label">Protein</span>
+              <span class="value">{{ currentProduct.nutritionData.nutritionFacts.protein }}g</span>
+            </div>
+            <div class="nutrition-item">
+              <span class="label">Total Fat</span>
+              <span class="value">{{ currentProduct.nutritionData.nutritionFacts.totalFat }}g</span>
+            </div>
+            <div class="nutrition-item">
+              <span class="label">Sodium</span>
+              <span class="value">{{ currentProduct.nutritionData.nutritionFacts.sodium }}mg</span>
+            </div>
+            <div class="nutrition-item">
+              <span class="label">Total Sugars</span>
+              <span class="value">{{ currentProduct.nutritionData.nutritionFacts.totalSugars }}g</span>
+            </div>
+            <div class="nutrition-item">
+              <span class="label">Fiber</span>
+              <span class="value">{{ currentProduct.nutritionData.nutritionFacts.dietaryFiber }}g</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Highlights -->
+        <div class="highlights-section" *ngIf="currentProduct.grade.highlights.length > 0">
+          <h3>Nutrition Highlights</h3>
+          <ion-list>
+            <ion-item *ngFor="let highlight of currentProduct.grade.highlights" class="highlight-item">
+              <ion-icon [name]="getHighlightIcon(highlight.category)" [color]="getSeverityColor(highlight.severity)"
+                slot="start">
+              </ion-icon>
+
+              <ion-label>
+                <h4 [color]="getSeverityColor(highlight.severity)">{{ highlight.message }}</h4>
+                <p>{{ highlight.impact }}</p>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="recommendations-section">
+          <h3>Recommendations</h3>
+          <ion-list>
+            <ion-item *ngFor="let recommendation of currentProduct.grade.recommendations">
+              <ion-icon name="checkmark-circle-outline" color="primary" slot="start"></ion-icon>
+              <ion-label>
+                <p>{{ recommendation }}</p>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+        </div>
+
+        <!-- Ingredients -->
+        <div class="ingredients-section" *ngIf="currentProduct.nutritionData.ingredients.length > 0">
+          <h3>Ingredients</h3>
+          <ion-chip *ngFor="let ingredient of currentProduct.nutritionData.ingredients" color="medium">
+            {{ ingredient }}
+          </ion-chip>
+        </div>
+
+        <!-- Allergens -->
+        <div class="allergens-section" *ngIf="currentProduct.nutritionData.allergens?.length > 0">
+          <h3>Allergens</h3>
+          <ion-chip *ngFor="let allergen of currentProduct.nutritionData.allergens" color="warning">
+            {{ allergen }}
+          </ion-chip>
+        </div>
+      </ion-card-content>
+    </ion-card>
+  </div>
+</ion-content>
