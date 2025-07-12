@@ -3,44 +3,65 @@ import {
   HttpClient,
   HttpHeaders,
   HttpErrorResponse,
+  HttpParams,
 } from '@angular/common/http';
 import { Observable, throwError, of } from 'rxjs';
 import { catchError, map, timeout, retry } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { NutritionData, NutritionFacts } from '../models/nutrition-data.model';
 import { StorageService } from './storage.service';
+import { FatSecretAuthService } from './fatsecret-auth.service';
 
-export interface NutritionApiResponse {
-  foods: Array<{
-    food_name: string;
-    brand_name?: string;
-    serving_qty: number;
-    serving_unit: string;
-    nix_item_id?: string;
-    nix_brand_id?: string;
-    nix_brand_name?: string;
-    nix_item_name?: string;
-    nix_item_description?: string;
-    nix_item_ingredients?: string;
-    nix_item_allergen_info?: string;
-    nix_item_nutrition_info?: {
-      calories: number;
-      total_fat: number;
-      saturated_fat: number;
-      trans_fat: number;
-      cholesterol: number;
-      sodium: number;
-      total_carbohydrate: number;
-      dietary_fiber: number;
-      total_sugars: number;
-      added_sugars: number;
-      protein: number;
-      vitamin_d: number;
-      calcium: number;
-      iron: number;
-      potassium: number;
+export interface FatSecretFoodResponse {
+  foods: {
+    food: {
+      food_id: string;
+      food_name: string;
+      food_description?: string;
+      food_url?: string;
+      brand_name?: string;
+      servings: {
+        serving: Array<{
+          serving_id: string;
+          serving_description: string;
+          metric_serving_amount: number;
+          metric_serving_unit: string;
+          number_of_units: number;
+          measurement_description: string;
+          calories: number;
+          carbohydrate: number;
+          protein: number;
+          fat: number;
+          saturated_fat: number;
+          polyunsaturated_fat: number;
+          monounsaturated_fat: number;
+          trans_fat: number;
+          cholesterol: number;
+          sodium: number;
+          potassium: number;
+          fiber: number;
+          sugar: number;
+          vitamin_c: number;
+          vitamin_a: number;
+          calcium: number;
+          iron: number;
+        }>;
+      };
     };
-  }>;
+  };
+}
+
+export interface FatSecretSearchResponse {
+  foods: {
+    food: Array<{
+      food_id: string;
+      food_name: string;
+      food_description?: string;
+      brand_name?: string;
+      food_type: string;
+      food_url?: string;
+    }>;
+  };
 }
 
 @Injectable({
@@ -51,7 +72,8 @@ export class NutritionApiService {
 
   constructor(
     private http: HttpClient,
-    private storageService: StorageService
+    private storageService: StorageService,
+    private fatSecretAuth: FatSecretAuthService
   ) {}
 
   /**
@@ -83,83 +105,222 @@ export class NutritionApiService {
   }
 
   /**
-   * Fetch nutrition data from external API
+   * Fetch nutrition data from FatSecret API
    */
   private async fetchNutritionDataFromApi(
     barcode: string
   ): Promise<NutritionData> {
-    const url = `${this.API_CONFIG.baseUrl}/search/item`;
+    try {
+      // Get access token
+      const accessToken = await this.fatSecretAuth.getAccessToken();
+
+      // Search for food by barcode
+      const searchParams = new HttpParams()
+        .set('method', 'foods.search')
+        .set('search_expression', barcode)
+        .set('format', 'json');
+
+      const headers = new HttpHeaders({
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      });
+
+      const searchResponse = await this.http
+        .get<FatSecretSearchResponse>(this.API_CONFIG.baseUrl, {
+          headers,
+          params: searchParams,
+        })
+        .pipe(
+          timeout(this.API_CONFIG.timeout),
+          retry(2),
+          catchError(this.handleApiError.bind(this))
+        )
+        .toPromise();
+
+      if (
+        !searchResponse?.foods?.food ||
+        searchResponse.foods.food.length === 0
+      ) {
+        throw new Error('No food found for this barcode');
+      }
+
+      // Get detailed nutrition info for the first result
+      const foodId = searchResponse.foods.food[0].food_id;
+      const nutritionData = await this.getFoodNutritionData(
+        foodId,
+        accessToken
+      );
+
+      return {
+        barcode,
+        productName: searchResponse.foods.food[0].food_name,
+        brandName: searchResponse.foods.food[0].brand_name,
+        servingSize: nutritionData.servingSize,
+        nutritionFacts: nutritionData.nutritionFacts,
+        ingredients: [], // FatSecret doesn't provide ingredients in basic API
+        allergens: [], // FatSecret doesn't provide allergens in basic API
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      console.error('Error fetching nutrition data from FatSecret:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get detailed nutrition data for a specific food ID
+   */
+  private async getFoodNutritionData(
+    foodId: string,
+    accessToken: string
+  ): Promise<{ servingSize: string; nutritionFacts: NutritionFacts }> {
+    const params = new HttpParams()
+      .set('method', 'food.get.v2')
+      .set('food_id', foodId)
+      .set('format', 'json');
+
     const headers = new HttpHeaders({
-      'x-app-id': this.API_CONFIG.appId,
-      'x-app-key': this.API_CONFIG.appKey,
-      'x-remote-user-id': '0',
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
     });
 
-    const params = {
-      upc: barcode,
-    };
-
     const response = await this.http
-      .get<NutritionApiResponse>(url, { headers, params })
+      .get<FatSecretFoodResponse>(this.API_CONFIG.baseUrl, {
+        headers,
+        params,
+      })
       .pipe(
         timeout(this.API_CONFIG.timeout),
         retry(2),
-        map((response) => this.transformApiResponse(response, barcode)),
         catchError(this.handleApiError.bind(this))
       )
       .toPromise();
 
-    if (!response) {
-      throw new Error('No response from nutrition API');
+    if (!response?.foods?.food?.servings?.serving) {
+      throw new Error('No nutrition data available for this food');
     }
 
-    return response;
+    // Use the first serving for nutrition data
+    const serving = response.foods.food.servings.serving[0];
+
+    return {
+      servingSize: serving.serving_description,
+      nutritionFacts: {
+        calories: serving.calories || 0,
+        totalFat: serving.fat || 0,
+        saturatedFat: serving.saturated_fat || 0,
+        transFat: serving.trans_fat || 0,
+        cholesterol: serving.cholesterol || 0,
+        sodium: serving.sodium || 0,
+        totalCarbohydrates: serving.carbohydrate || 0,
+        dietaryFiber: serving.fiber || 0,
+        totalSugars: serving.sugar || 0,
+        addedSugars: 0, // FatSecret doesn't provide added sugars
+        protein: serving.protein || 0,
+        vitaminD: 0, // FatSecret doesn't provide vitamin D
+        calcium: serving.calcium || 0,
+        iron: serving.iron || 0,
+        potassium: serving.potassium || 0,
+      },
+    };
   }
 
   /**
-   * Transform API response to our NutritionData format
+   * Search for products by name
    */
-  private transformApiResponse(
-    response: NutritionApiResponse,
-    barcode: string
-  ): NutritionData {
-    if (!response.foods || response.foods.length === 0) {
-      throw new Error('No nutrition data found for this product');
+  async searchProductsByName(query: string): Promise<NutritionData[]> {
+    try {
+      const accessToken = await this.fatSecretAuth.getAccessToken();
+
+      const params = new HttpParams()
+        .set('method', 'foods.search')
+        .set('search_expression', query)
+        .set('max_results', '10')
+        .set('format', 'json');
+
+      const headers = new HttpHeaders({
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      });
+
+      const response = await this.http
+        .get<FatSecretSearchResponse>(this.API_CONFIG.baseUrl, {
+          headers,
+          params,
+        })
+        .pipe(
+          timeout(this.API_CONFIG.timeout),
+          retry(2),
+          map((response) => this.transformSearchResults(response)),
+          catchError(this.handleApiError.bind(this))
+        )
+        .toPromise();
+
+      return response || [];
+    } catch (error) {
+      console.error('Error searching products:', error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
+      throw new Error(`Failed to search products: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Transform search results to NutritionData format
+   */
+  private transformSearchResults(
+    response: FatSecretSearchResponse
+  ): NutritionData[] {
+    if (!response?.foods?.food) {
+      return [];
     }
 
-    const food = response.foods[0];
-    const nutrition = food.nix_item_nutrition_info;
-
-    if (!nutrition) {
-      throw new Error('Nutrition information not available for this product');
-    }
-
-    return {
-      barcode,
+    return response.foods.food.map((food) => ({
+      barcode: '', // FatSecret doesn't provide barcodes in search results
       productName: food.food_name,
-      brandName: food.brand_name || food.nix_brand_name,
-      servingSize: `${food.serving_qty} ${food.serving_unit}`,
-      nutritionFacts: {
-        calories: nutrition.calories || 0,
-        totalFat: nutrition.total_fat || 0,
-        saturatedFat: nutrition.saturated_fat || 0,
-        transFat: nutrition.trans_fat || 0,
-        cholesterol: nutrition.cholesterol || 0,
-        sodium: nutrition.sodium || 0,
-        totalCarbohydrates: nutrition.total_carbohydrate || 0,
-        dietaryFiber: nutrition.dietary_fiber || 0,
-        totalSugars: nutrition.total_sugars || 0,
-        addedSugars: nutrition.added_sugars || 0,
-        protein: nutrition.protein || 0,
-        vitaminD: nutrition.vitamin_d || 0,
-        calcium: nutrition.calcium || 0,
-        iron: nutrition.iron || 0,
-        potassium: nutrition.potassium || 0,
-      },
-      ingredients: this.parseIngredients(food.nix_item_ingredients),
-      allergens: this.parseAllergens(food.nix_item_allergen_info),
+      brandName: food.brand_name,
+      servingSize: 'Per serving',
+      nutritionFacts: this.getDefaultNutritionFacts(),
+      ingredients: [],
+      allergens: [],
       timestamp: new Date(),
+    }));
+  }
+
+  /**
+   * Get default nutrition facts
+   */
+  private getDefaultNutritionFacts(): NutritionFacts {
+    return {
+      calories: 0,
+      totalFat: 0,
+      saturatedFat: 0,
+      transFat: 0,
+      cholesterol: 0,
+      sodium: 0,
+      totalCarbohydrates: 0,
+      dietaryFiber: 0,
+      totalSugars: 0,
+      addedSugars: 0,
+      protein: 0,
+      vitaminD: 0,
+      calcium: 0,
+      iron: 0,
+      potassium: 0,
     };
+  }
+
+  /**
+   * Check if API is available
+   */
+  async isApiAvailable(): Promise<boolean> {
+    try {
+      await this.fatSecretAuth.getAccessToken();
+      return true;
+    } catch (error) {
+      console.error('API availability check failed:', error);
+      return false;
+    }
   }
 
   /**
@@ -225,7 +386,7 @@ export class NutritionApiService {
       // Server-side error
       switch (error.status) {
         case 401:
-          errorMessage = 'Invalid API credentials';
+          errorMessage = 'Invalid API credentials or token expired';
           break;
         case 403:
           errorMessage = 'API access denied';
@@ -237,118 +398,14 @@ export class NutritionApiService {
           errorMessage = 'API rate limit exceeded. Please try again later';
           break;
         case 500:
-          errorMessage = 'Nutrition database server error';
+          errorMessage = 'FatSecret server error';
           break;
         default:
           errorMessage = `Server error: ${error.status} ${error.statusText}`;
       }
     }
 
-    console.error('Nutrition API error:', error);
+    console.error('FatSecret API error:', error);
     return throwError(() => new Error(errorMessage));
-  }
-
-  /**
-   * Search for products by name (fallback when barcode not found)
-   */
-  async searchProductsByName(query: string): Promise<NutritionData[]> {
-    try {
-      const url = `${this.API_CONFIG.baseUrl}/search/instant`;
-      const headers = new HttpHeaders({
-        'x-app-id': this.API_CONFIG.appId,
-        'x-app-key': this.API_CONFIG.appKey,
-        'x-remote-user-id': '0',
-      });
-
-      const params = {
-        query,
-        detailed: 'true',
-      };
-
-      const response = await this.http
-        .get<NutritionApiResponse>(url, { headers, params })
-        .pipe(
-          timeout(this.API_CONFIG.timeout),
-          map((response) =>
-            response.foods.map((food) => this.transformSearchResult(food))
-          ),
-          catchError(this.handleApiError.bind(this))
-        )
-        .toPromise();
-
-      if (!response) {
-        return [];
-      }
-
-      return response;
-    } catch (error) {
-      console.error('Error searching products:', error);
-      throw new Error('Failed to search for products');
-    }
-  }
-
-  /**
-   * Transform search result to NutritionData
-   */
-  private transformSearchResult(food: any): NutritionData {
-    return {
-      barcode: '', // Not available in search results
-      productName: food.food_name,
-      brandName: food.brand_name,
-      servingSize: `${food.serving_qty || 1} ${food.serving_unit || 'serving'}`,
-      nutritionFacts: this.getDefaultNutritionFacts(),
-      ingredients: [],
-      allergens: [],
-      timestamp: new Date(),
-    };
-  }
-
-  /**
-   * Get default nutrition facts for search results
-   */
-  private getDefaultNutritionFacts(): NutritionFacts {
-    return {
-      calories: 0,
-      totalFat: 0,
-      saturatedFat: 0,
-      transFat: 0,
-      cholesterol: 0,
-      sodium: 0,
-      totalCarbohydrates: 0,
-      dietaryFiber: 0,
-      totalSugars: 0,
-      addedSugars: 0,
-      protein: 0,
-      vitaminD: 0,
-      calcium: 0,
-      iron: 0,
-      potassium: 0,
-    };
-  }
-
-  /**
-   * Check if API is available
-   */
-  async isApiAvailable(): Promise<boolean> {
-    try {
-      const url = `${this.API_CONFIG.baseUrl}/search/item`;
-      const headers = new HttpHeaders({
-        'x-app-id': this.API_CONFIG.appId,
-        'x-app-key': this.API_CONFIG.appKey,
-        'x-remote-user-id': '0',
-      });
-
-      await this.http
-        .get(url, { headers })
-        .pipe(
-          timeout(5000),
-          catchError(() => of(null))
-        )
-        .toPromise();
-
-      return true;
-    } catch (error) {
-      return false;
-    }
   }
 }
