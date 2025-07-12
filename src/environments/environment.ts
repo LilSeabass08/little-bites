@@ -7,12 +7,12 @@ export const environment = {
   appName: 'Little Bites',
   appVersion: '1.0.0',
 
-  // External Nutrition API Configuration
+  // FatSecret API Configuration
   nutritionApi: {
-    baseUrl: 'https://api.nutritionix.com/v2',
-    appId: 'YOUR_NUTRITION_API_APP_ID',
-    appKey: 'YOUR_NUTRITION_API_APP_KEY',
-    timeout: 10000,
+    baseUrl: 'https://platform.fatsecret.com/rest/server.api',
+    clientId: 'f28cb6e8959f49aebe907601c64b8272',
+    clientSecret: 'f4f9f8818a784721a2e009d69848e9ec',
+    timeout: 15000,
   },
 
   // Internal Database API (for comparison criteria)

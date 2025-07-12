@@ -6,6 +6,7 @@ import { HttpClientModule } from '@angular/common/http';
 
 import { ProductScannerPageRoutingModule } from './product-scanner-routing.module';
 import { ProductScannerPage } from './product-scanner.page';
+import { BarcodeScannerModalModule } from '../../components/barcode-scanner-modal/barcode-scanner-modal.module';
 
 @NgModule({
   imports: [
@@ -14,6 +15,7 @@ import { ProductScannerPage } from './product-scanner.page';
     IonicModule,
     HttpClientModule,
     ProductScannerPageRoutingModule,
+    BarcodeScannerModalModule,
   ],
   declarations: [ProductScannerPage],
 })
