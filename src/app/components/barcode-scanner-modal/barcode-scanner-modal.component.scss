@@ -1,0 +1,209 @@
+.scanner-content {
+  --background: #000;
+  --color: #fff;
+}
+
+.scanner-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+}
+
+.instructions {
+  text-align: center;
+  margin-bottom: 30px;
+  z-index: 10;
+  position: relative;
+
+  .scan-icon {
+    font-size: 3rem;
+    color: var(--ion-color-primary);
+    margin-bottom: 16px;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: #fff;
+  }
+
+  p {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0;
+    line-height: 1.4;
+  }
+}
+
+.error-state {
+  text-align: center;
+  padding: 40px 20px;
+  max-width: 400px;
+
+  .error-icon {
+    font-size: 4rem;
+    margin-bottom: 20px;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    color: #fff;
+  }
+
+  p {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0 0 24px 0;
+    line-height: 1.4;
+  }
+
+  ion-button {
+    margin-top: 16px;
+  }
+}
+
+.loading-state {
+  text-align: center;
+  padding: 40px 20px;
+
+  ion-spinner {
+    font-size: 2rem;
+    margin-bottom: 16px;
+  }
+
+  p {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0;
+  }
+}
+
+.camera-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+.camera-overlay {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scan-frame {
+  position: relative;
+  width: 250px;
+  height: 150px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+
+  .corner {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--ion-color-primary);
+    border-radius: 2px;
+
+    &.top-left {
+      top: -2px;
+      left: -2px;
+      border-right: none;
+      border-bottom: none;
+    }
+
+    &.top-right {
+      top: -2px;
+      right: -2px;
+      border-left: none;
+      border-bottom: none;
+    }
+
+    &.bottom-left {
+      bottom: -2px;
+      left: -2px;
+      border-right: none;
+      border-top: none;
+    }
+
+    &.bottom-right {
+      bottom: -2px;
+      right: -2px;
+      border-left: none;
+      border-top: none;
+    }
+  }
+}
+
+// Scanning animation
+@keyframes scan-line {
+  0% {
+    transform: translateY(-50%);
+  }
+  50% {
+    transform: translateY(50%);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+.scan-frame::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--ion-color-primary),
+    transparent
+  );
+  animation: scan-line 2s ease-in-out infinite;
+}
+
+// Responsive design
+@media (max-width: 480px) {
+  .scan-frame {
+    width: 200px;
+    height: 120px;
+  }
+
+  .instructions {
+    h2 {
+      font-size: 1.3rem;
+    }
+
+    p {
+      font-size: 0.9rem;
+    }
+  }
+}
+
+// Dark mode adjustments
+@media (prefers-color-scheme: dark) {
+  .scanner-content {
+    --background: #000;
+  }
+}
+
+// Light mode adjustments
+@media (prefers-color-scheme: light) {
+  .scanner-content {
+    --background: #000; // Keep dark for camera view
+  }
+}

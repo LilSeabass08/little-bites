@@ -1,0 +1,60 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="cancel()" fill="clear">
+        <ion-icon name="close-outline"></ion-icon>
+        Cancel
+      </ion-button>
+    </ion-buttons>
+
+    <ion-title>Scan Barcode</ion-title>
+
+    <ion-buttons slot="end">
+      <ion-button (click)="retry()" fill="clear" *ngIf="errorMessage">
+        <ion-icon name="refresh-outline"></ion-icon>
+        Retry
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="scanner-content">
+  <div class="scanner-container">
+    <!-- Scanning Instructions -->
+    <div class="instructions" *ngIf="isScanning && !errorMessage">
+      <ion-icon name="scan-outline" class="scan-icon"></ion-icon>
+      <h2>Scan Product Barcode</h2>
+      <p>{{ scanningInstructions }}</p>
+    </div>
+
+    <!-- Error State -->
+    <div class="error-state" *ngIf="errorMessage">
+      <ion-icon name="alert-circle-outline" color="danger" class="error-icon"></ion-icon>
+      <h2>Scanning Error</h2>
+      <p>{{ errorMessage }}</p>
+      <ion-button (click)="retry()" color="primary" expand="block">
+        <ion-icon name="refresh-outline" slot="start"></ion-icon>
+        Try Again
+      </ion-button>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading-state" *ngIf="isScanning && !errorMessage">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Initializing camera...</p>
+    </div>
+
+    <!-- Camera View Container -->
+    <div class="camera-container" *ngIf="isScanning && !errorMessage">
+      <!-- The MLKit plugin will handle the camera view here -->
+      <div class="camera-overlay">
+        <div class="scan-frame">
+          <div class="corner top-left"></div>
+          <div class="corner top-right"></div>
+          <div class="corner bottom-left"></div>
+          <div class="corner bottom-right"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</ion-content>
